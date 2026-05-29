@@ -1,18 +1,19 @@
 import os
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel, EmailStr, Field
 
 from database import supabase
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
@@ -27,12 +28,15 @@ def _get_jwt_settings() -> tuple[str, str]:
 
 def hash_password(password: str) -> str:
     """Gera hash seguro da senha para armazenamento."""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Confere se a senha informada bate com o hash armazenado."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
+    )
 
 
 def create_access_token(
@@ -97,8 +101,9 @@ class RegisterRequest(BaseModel):
     """Payload de cadastro inicial (cria barbearia + usuário)."""
 
     barber_shop_name: str = Field(..., min_length=2, max_length=80)
-    barber_shop_slug: str = Field(..., min_length=2, max_length=60, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    owner_name: str = Field(..., min_length=2, max_length=80)
     email: EmailStr
+    phone: str = Field(..., min_length=8, max_length=30)
     password: str = Field(..., min_length=6, max_length=128)
 
 
@@ -123,24 +128,60 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+def slugify_barber_shop_name(name: str) -> str:
+    """Gera slug a partir do nome: minúsculas, hífens, sem acentos ou caracteres especiais."""
+    normalized = unicodedata.normalize("NFKD", name)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = ascii_text.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[\s_]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
+
+
+def generate_unique_slug(barber_shop_name: str) -> str:
+    """Gera slug único; adiciona sufixo numérico se o slug base já existir."""
+    base_slug = slugify_barber_shop_name(barber_shop_name)
+    if not base_slug:
+        raise HTTPException(
+            status_code=400,
+            detail="Nome da barbearia inválido para gerar slug.",
+        )
+
+    candidate = base_slug
+    counter = 2
+
+    while True:
+        existing = (
+            supabase.table("barber_shops")
+            .select("id")
+            .eq("slug", candidate)
+            .limit(1)
+            .execute()
+        )
+        if not existing.data:
+            return candidate
+
+        candidate = f"{base_slug}-{counter}"
+        counter += 1
+
+
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 def register(payload: RegisterRequest) -> RegisterResponse:
     """Cria uma barbearia e um usuário administrador inicial."""
-    # Verifica slug duplicado
-    existing_shop = (
-        supabase.table("barber_shops")
-        .select("id")
-        .eq("slug", payload.barber_shop_slug)
-        .limit(1)
-        .execute()
-    )
-    if existing_shop.data:
-        raise HTTPException(status_code=409, detail="Slug de barbearia já existe.")
+    slug = generate_unique_slug(payload.barber_shop_name)
 
-    # Cria barbearia
+    # Cria barbearia com slug gerado e dados do proprietário
     shop_insert = (
         supabase.table("barber_shops")
-        .insert({"name": payload.barber_shop_name, "slug": payload.barber_shop_slug})
+        .insert(
+            {
+                "name": payload.barber_shop_name,
+                "slug": slug,
+                "owner_name": payload.owner_name,
+                "phone": payload.phone,
+            }
+        )
         .execute()
     )
     if not shop_insert.data:
