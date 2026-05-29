@@ -1,4 +1,13 @@
 const BASE_URL = "http://localhost:8000"
+const TOKEN_KEY = "flowcut_token"
+
+function setAuthCookie(token: string) {
+  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+}
+
+function clearAuthCookie() {
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`
+}
 
 export async function registerBarberShop(data: {
   barber_shop_name: string
@@ -33,14 +42,17 @@ export async function loginBarberShop(data: {
     throw new Error(error.detail || "Erro ao fazer login")
   }
   const result = await res.json()
-  localStorage.setItem("flowcut_token", result.access_token)
+  localStorage.setItem(TOKEN_KEY, result.access_token)
+  setAuthCookie(result.access_token)
   return result
 }
 
 export function getToken() {
-  return localStorage.getItem("flowcut_token")
+  if (typeof window === "undefined") return null
+  return localStorage.getItem(TOKEN_KEY)
 }
 
 export function logout() {
-  localStorage.removeItem("flowcut_token")
+  localStorage.removeItem(TOKEN_KEY)
+  clearAuthCookie()
 }

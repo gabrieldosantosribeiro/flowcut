@@ -1,10 +1,16 @@
+"use client"
+
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { AppointmentsTable } from "@/components/dashboard/appointments-table"
 import { PopularServicesChart } from "@/components/dashboard/popular-services-chart"
+import { Spinner } from "@/components/ui/spinner"
+import { useAuth } from "@/hooks/useAuth"
 import { Calendar, DollarSign, Users, CheckCircle } from "lucide-react"
 
 export default function DashboardPage() {
+  const { isAuthenticated, isLoading } = useAuth()
+
   const today = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
     year: "numeric",
@@ -12,10 +18,18 @@ export default function DashboardPage() {
     day: "numeric",
   })
 
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Spinner className="size-8" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar activeItem="dashboard" />
-      
+
       <main className="flex-1 overflow-auto">
         <div className="p-8">
           {/* Header */}
