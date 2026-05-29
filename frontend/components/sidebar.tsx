@@ -3,22 +3,31 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  LayoutDashboard,
-  Scissors,
-  Users,
+  Home,
   Calendar,
+  Users,
+  Scissors,
+  User,
   Settings,
   LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
-  { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/barbeiros", icon: Scissors, label: "Barbeiros" },
-  { href: "/clientes", icon: Users, label: "Clientes" },
-  { href: "/agendamentos", icon: Calendar, label: "Agendamentos" },
-  { href: "/configuracoes", icon: Settings, label: "Configurações" },
+  { href: "/dashboard", label: "Dashboard", icon: Home },
+  { href: "/dashboard/barbers", label: "Barbeiros", icon: Users },
+  { href: "/dashboard/services", label: "Serviços", icon: Scissors },
+  { href: "/dashboard/appointments", label: "Agendamentos", icon: Calendar },
+  { href: "/dashboard/customers", label: "Clientes", icon: User },
+  { href: "/dashboard/settings", label: "Configurações", icon: Settings },
 ]
+
+function isNavActive(pathname: string, href: string) {
+  if (href === "/dashboard") {
+    return pathname === "/dashboard"
+  }
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -32,7 +41,9 @@ export function Sidebar() {
 
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const Icon = item.icon
+          const isActive = isNavActive(pathname, item.href)
+
           return (
             <Link
               key={item.href}
@@ -44,7 +55,7 @@ export function Sidebar() {
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" />
               {item.label}
             </Link>
           )

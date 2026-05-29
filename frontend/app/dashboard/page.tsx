@@ -28,7 +28,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar activeItem="dashboard" />
+      <Sidebar />
 
       <main className="flex-1 overflow-auto">
         <div className="p-8">
