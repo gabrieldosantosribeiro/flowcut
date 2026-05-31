@@ -18,10 +18,10 @@ load_dotenv()
 app = FastAPI(title="FlowCut API", version="0.1.0")
 
 
-# CORS liberado por enquanto (para facilitar desenvolvimento)
+# CORS para o frontend Next.js em desenvolvimento
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -19,7 +19,7 @@ interface ServiceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   service?: Service | null
-  onSave: (service: Omit<Service, "id"> & { id?: string }) => void
+  onSave: (service: Omit<Service, "id"> & { id?: string }) => void | Promise<void>
 }
 
 export function ServiceModal({ open, onOpenChange, service, onSave }: ServiceModalProps) {
@@ -45,9 +45,9 @@ export function ServiceModal({ open, onOpenChange, service, onSave }: ServiceMod
     }
   }, [service, open])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
+    await onSave({
       id: service?.id,
       name,
       description,
@@ -55,7 +55,6 @@ export function ServiceModal({ open, onOpenChange, service, onSave }: ServiceMod
       duration: parseInt(duration) || 0,
       active,
     })
-    onOpenChange(false)
   }
 
   return (

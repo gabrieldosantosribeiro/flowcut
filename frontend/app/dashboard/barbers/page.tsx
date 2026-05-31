@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { BarberCard, type Barber } from "@/components/barbers/barber-card"
 import { BarberModal } from "@/components/barbers/barber-modal"
@@ -17,34 +18,67 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  createBarber,
+  deleteBarber,
+  getBarberShopIdFromToken,
+  getBarbers,
+  updateBarber,
+} from "@/lib/api"
 
-const initialBarbers: Barber[] = [
-  {
-    id: "1",
-    name: "Carlos Silva",
-    specialty: "Cortes clássicos e barba",
-    status: "ativo",
-  },
-  {
-    id: "2",
-    name: "André Costa",
-    specialty: "Degradê e cortes modernos",
-    status: "ativo",
-  },
-  {
-    id: "3",
-    name: "Felipe Rocha",
-    specialty: "Coloração e tratamentos capilares",
-    status: "inativo",
-  },
-]
+interface ApiBarber {
+  id: string
+  barber_shop_id: string
+  name: string
+  bio?: string | null
+  active: boolean
+}
+
+function mapApiBarberToUi(barber: ApiBarber): Barber {
+  return {
+    id: barber.id,
+    name: barber.name,
+    specialty: barber.bio || "",
+    status: barber.active ? "ativo" : "inativo",
+  }
+}
 
 export default function BarbeirosPage() {
-  const [barbers, setBarbers] = useState<Barber[]>(initialBarbers)
+  const [barbers, setBarbers] = useState<Barber[]>([])
+  const [barberShopId, setBarberShopId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingBarber, setEditingBarber] = useState<Barber | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [barberToDelete, setBarberToDelete] = useState<Barber | null>(null)
+
+  const loadBarbers = useCallback(async (shopId: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const data: ApiBarber[] = await getBarbers(shopId)
+      setBarbers(data.map(mapApiBarberToUi))
+    } catch {
+      setError("Não foi possível carregar os barbeiros.")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const shopId = getBarberShopIdFromToken()
+    if (!shopId) {
+      setError("Barbearia não identificada. Faça login novamente.")
+      setLoading(false)
+      return
+    }
+
+    setBarberShopId(shopId)
+    loadBarbers(shopId)
+  }, [loadBarbers])
 
   const handleAddBarber = () => {
     setEditingBarber(null)
@@ -61,29 +95,58 @@ export default function BarbeirosPage() {
     setDeleteDialogOpen(true)
   }
 
-  const confirmDelete = () => {
-    if (barberToDelete) {
-      setBarbers(barbers.filter((b) => b.id !== barberToDelete.id))
+  const confirmDelete = async () => {
+    if (!barberToDelete || !barberShopId) return
+
+    setSaving(true)
+    setError(null)
+
+    try {
+      await deleteBarber(barberToDelete.id)
       setBarberToDelete(null)
       setDeleteDialogOpen(false)
+      await loadBarbers(barberShopId)
+    } catch {
+      setError("Não foi possível excluir o barbeiro.")
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleSaveBarber = (barber: Omit<Barber, "id"> & { id?: string }) => {
-    if (barber.id) {
-      setBarbers(
-        barbers.map((b) =>
-          b.id === barber.id ? { ...barber, id: barber.id } : b
-        )
+  const handleSaveBarber = async (
+    barber: Omit<Barber, "id"> & { id?: string }
+  ) => {
+    if (!barberShopId) return
+
+    setSaving(true)
+    setError(null)
+
+    try {
+      if (barber.id) {
+        await updateBarber(barber.id, {
+          name: barber.name,
+          bio: barber.specialty || undefined,
+          active: barber.status === "ativo",
+        })
+      } else {
+        await createBarber({
+          barber_shop_id: barberShopId,
+          name: barber.name,
+          bio: barber.specialty || undefined,
+          active: barber.status === "ativo",
+        })
+      }
+
+      setModalOpen(false)
+      await loadBarbers(barberShopId)
+    } catch {
+      setError(
+        barber.id
+          ? "Não foi possível atualizar o barbeiro."
+          : "Não foi possível criar o barbeiro."
       )
-    } else {
-      setBarbers([
-        ...barbers,
-        {
-          ...barber,
-          id: Date.now().toString(),
-        },
-      ])
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -95,6 +158,7 @@ export default function BarbeirosPage() {
           <h1 className="text-3xl font-bold text-foreground">Barbeiros</h1>
           <Button
             onClick={handleAddBarber}
+            disabled={loading || saving || !barberShopId}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -102,7 +166,17 @@ export default function BarbeirosPage() {
           </Button>
         </div>
 
-        {barbers.length === 0 ? (
+        {error && (
+          <p className="mb-6 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <Spinner className="size-8" />
+          </div>
+        ) : barbers.length === 0 ? (
           <EmptyState onAddBarber={handleAddBarber} />
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -139,14 +213,18 @@ export default function BarbeirosPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-border text-foreground hover:bg-secondary">
+              <AlertDialogCancel
+                disabled={saving}
+                className="border-border text-foreground hover:bg-secondary"
+              >
                 Cancelar
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmDelete}
+                disabled={saving}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Excluir
+                {saving ? "Excluindo..." : "Excluir"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

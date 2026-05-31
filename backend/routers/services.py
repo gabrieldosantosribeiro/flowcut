@@ -15,7 +15,7 @@ class Service(BaseModel):
     id: str
     barber_shop_id: str
     name: str
-    price_cents: int
+    price: int
     duration_minutes: int
     active: bool = True
     description: Optional[str] = None
@@ -26,7 +26,7 @@ class ServiceCreate(BaseModel):
 
     barber_shop_id: str
     name: str = Field(..., min_length=2, max_length=80)
-    price_cents: conint(ge=0)  # type: ignore[valid-type]
+    price: conint(ge=0)  # type: ignore[valid-type]
     duration_minutes: conint(ge=5, le=480)  # type: ignore[valid-type]
     active: bool = True
     description: Optional[str] = Field(None, max_length=500)
@@ -36,7 +36,7 @@ class ServiceUpdate(BaseModel):
     """Payload para edição de serviço (autenticado)."""
 
     name: Optional[str] = Field(None, min_length=2, max_length=80)
-    price_cents: Optional[int] = Field(None, ge=0)
+    price: Optional[int] = Field(None, ge=0)
     duration_minutes: Optional[int] = Field(None, ge=5, le=480)
     active: Optional[bool] = None
     description: Optional[str] = Field(None, max_length=500)
@@ -49,7 +49,7 @@ def list_services(
     """Lista serviços de uma barbearia (público)."""
     res = (
         supabase.table("services")
-        .select("id, barber_shop_id, name, price_cents, duration_minutes, active, description")
+        .select("id, barber_shop_id, name, price, duration_minutes, active, description")
         .eq("barber_shop_id", barber_shop_id)
         .order("name")
         .execute()
@@ -59,7 +59,7 @@ def list_services(
             id=str(r["id"]),
             barber_shop_id=str(r["barber_shop_id"]),
             name=r["name"],
-            price_cents=int(r.get("price_cents", 0)),
+            price=int(r.get("price", 0)),
             duration_minutes=int(r.get("duration_minutes", 30)),
             active=bool(r.get("active", True)),
             description=r.get("description"),
@@ -78,7 +78,7 @@ def create_service(
     res = (
         supabase.table("services")
         .insert(payload.model_dump())
-        .select("id, barber_shop_id, name, price_cents, duration_minutes, active, description")
+        .select("id, barber_shop_id, name, price, duration_minutes, active, description")
         .execute()
     )
     if not res.data:
@@ -88,7 +88,7 @@ def create_service(
         id=str(r["id"]),
         barber_shop_id=str(r["barber_shop_id"]),
         name=r["name"],
-        price_cents=int(r.get("price_cents", 0)),
+        price=int(r.get("price", 0)),
         duration_minutes=int(r.get("duration_minutes", 30)),
         active=bool(r.get("active", True)),
         description=r.get("description"),
@@ -121,7 +121,7 @@ def update_service(
         supabase.table("services")
         .update(update_data)
         .eq("id", id)
-        .select("id, barber_shop_id, name, price_cents, duration_minutes, active, description")
+        .select("id, barber_shop_id, name, price, duration_minutes, active, description")
         .execute()
     )
     r = res.data[0]
@@ -129,7 +129,7 @@ def update_service(
         id=str(r["id"]),
         barber_shop_id=str(r["barber_shop_id"]),
         name=r["name"],
-        price_cents=int(r.get("price_cents", 0)),
+        price=int(r.get("price", 0)),
         duration_minutes=int(r.get("duration_minutes", 30)),
         active=bool(r.get("active", True)),
         description=r.get("description"),

@@ -18,7 +18,7 @@ interface BarberModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   barber: Barber | null
-  onSave: (barber: Omit<Barber, "id"> & { id?: string }) => void
+  onSave: (barber: Omit<Barber, "id"> & { id?: string }) => void | Promise<void>
 }
 
 export function BarberModal({
@@ -43,15 +43,14 @@ export function BarberModal({
     }
   }, [barber, open])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
+    await onSave({
       id: barber?.id,
       name,
       specialty,
       status,
     })
-    onOpenChange(false)
   }
 
   return (
