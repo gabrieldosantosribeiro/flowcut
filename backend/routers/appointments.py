@@ -213,35 +213,43 @@ def create_appointment(payload: AppointmentCreate) -> Appointment:
     )
 
 
-@router.get("", response_model=List[Appointment])
+@router.get("", response_model=list)
 def list_appointments(
     barber_shop_id: str = Query(..., description="ID da barbearia"),
+    date: str = Query(None, description="Data no formato YYYY-MM-DD"),
     auth: AuthContext = Depends(get_current_auth),
-) -> List[Appointment]:
-    """Lista agendamentos da barbearia (autenticado)."""
+) -> list:
+    """Lista agendamentos da barbearia com dados relacionados (autenticado)."""
     require_shop_access(auth, barber_shop_id)
-    res = (
+    
+    query = (
         supabase.table("appointments")
-        .select("id, barber_shop_id, barber_id, service_id, customer_id, starts_at, ends_at, status, notes")
+        .select("""
+            id,
+            barber_shop_id,
+            scheduled_at,
+            ends_at,
+            status,
+            notes,
+            customers(id, name, phone),
+            barbers(id, name),
+            services(id, name, price, duration_minutes)
+        """)
         .eq("barber_shop_id", barber_shop_id)
-        .order("starts_at", desc=True)
-        .execute()
+        .order("scheduled_at", desc=False)
     )
-    return [
-        Appointment(
-            id=str(r["id"]),
-            barber_shop_id=str(r["barber_shop_id"]),
-            barber_id=str(r["barber_id"]),
-            service_id=str(r["service_id"]),
-            customer_id=str(r["customer_id"]),
-            starts_at=r["starts_at"],
-            ends_at=r["ends_at"],
-            status=r.get("status", "pending"),
-            notes=r.get("notes"),
-        )
-        for r in (res.data or [])
-    ]
-
+    
+    if date:
+        from datetime import datetime, timedelta
+        try:
+            day = datetime.fromisoformat(date)
+            next_day = day + timedelta(days=1)
+            query = query.gte("scheduled_at", day.isoformat()).lt("scheduled_at", next_day.isoformat())
+        except ValueError:
+            pass
+    
+    res = query.execute()
+    return res.data or []
 
 @router.patch("/{id}/status", response_model=Appointment)
 def patch_appointment_status(
@@ -265,7 +273,7 @@ def patch_appointment_status(
         supabase.table("appointments")
         .update({"status": payload.status})
         .eq("id", id)
-        .select("id, barber_shop_id, barber_id, service_id, customer_id, starts_at, ends_at, status, notes")
+        .select("id, barber_shop_id, barber_id, service_id, customer_id, scheduled_at, ends_at, status, notes")
         .execute()
     )
     r = res.data[0]
@@ -275,9 +283,8 @@ def patch_appointment_status(
         barber_id=str(r["barber_id"]),
         service_id=str(r["service_id"]),
         customer_id=str(r["customer_id"]),
-        starts_at=r["starts_at"],
+        starts_at=r["scheduled_at"],
         ends_at=r["ends_at"],
         status=r.get("status", "pending"),
         notes=r.get("notes"),
     )
-

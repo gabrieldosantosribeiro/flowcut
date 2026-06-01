@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { SummaryCards } from "@/components/appointments/summary-cards"
 import { FiltersBar } from "@/components/appointments/filters-bar"
@@ -8,90 +8,103 @@ import {
   AppointmentsTable,
   type Appointment,
 } from "@/components/appointments/appointments-table"
+import {
+  getAppointments,
+  getBarberShopIdFromToken,
+  updateAppointmentStatus,
+} from "@/lib/api"
 
-const sampleAppointments: Appointment[] = [
-  {
-    id: "1",
-    horario: "09:00",
-    cliente: "João Silva",
-    barbeiro: "Carlos",
-    servico: "Corte + Barba",
-    valor: 75,
-    status: "confirmado",
-  },
-  {
-    id: "2",
-    horario: "10:00",
-    cliente: "Pedro Santos",
-    barbeiro: "Rafael",
-    servico: "Corte Degradê",
-    valor: 55,
-    status: "confirmado",
-  },
-  {
-    id: "3",
-    horario: "11:00",
-    cliente: "Lucas Oliveira",
-    barbeiro: "Carlos",
-    servico: "Corte + Sobrancelha",
-    valor: 60,
-    status: "pendente",
-  },
-  {
-    id: "4",
-    horario: "14:00",
-    cliente: "Matheus Costa",
-    barbeiro: "Rafael",
-    servico: "Barba",
-    valor: 35,
-    status: "confirmado",
-  },
-  {
-    id: "5",
-    horario: "15:30",
-    cliente: "Gabriel Ferreira",
-    barbeiro: "Carlos",
-    servico: "Corte Social",
-    valor: 45,
-    status: "pendente",
-  },
-  {
-    id: "6",
-    horario: "17:00",
-    cliente: "André Rodrigues",
-    barbeiro: "Rafael",
-    servico: "Corte + Barba + Sobrancelha",
-    valor: 115,
-    status: "confirmado",
-  },
-]
+interface ApiAppointment {
+  id: string
+  scheduled_at: string
+  status: string
+  customers: { name: string }
+  barbers: { name: string }
+  services: { name: string; price: number }
+}
 
-const barbeiros = ["Carlos", "Rafael"]
+const statusMap: Record<string, Appointment["status"]> = {
+  pending: "pendente",
+  confirmed: "confirmado",
+  cancelled: "cancelado",
+  completed: "concluido",
+}
+
+function mapApiAppointment(a: ApiAppointment): Appointment {
+  const date = new Date(a.scheduled_at)
+  const horario = date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+  return {
+    id: a.id,
+    horario,
+    cliente: a.customers?.name || "—",
+    barbeiro: a.barbers?.name || "—",
+    servico: a.services?.name || "—",
+    valor: a.services?.price || 0,
+    status: statusMap[a.status] || "pendente",
+  }
+}
 
 export default function AgendamentosPage() {
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [barberShopId, setBarberShopId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [barbeiro, setBarbeiro] = useState("todos")
   const [status, setStatus] = useState("todos")
 
-  const filteredAppointments = sampleAppointments.filter((appointment) => {
-    if (barbeiro !== "todos" && appointment.barbeiro !== barbeiro) return false
-    if (status !== "todos" && appointment.status !== status) return false
+  const loadAppointments = useCallback(async (shopId: string, selectedDate?: Date) => {
+    setLoading(true)
+    try {
+      const dateStr = selectedDate
+        ? selectedDate.toISOString().split("T")[0]
+        : undefined
+      const data: ApiAppointment[] = await getAppointments(shopId, dateStr)
+      setAppointments(data.map(mapApiAppointment))
+    } catch {
+      setAppointments([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const shopId = getBarberShopIdFromToken()
+    if (!shopId) return
+    setBarberShopId(shopId)
+    loadAppointments(shopId, date)
+  }, [loadAppointments])
+
+  const handleDateChange = (newDate: Date | undefined) => {
+    setDate(newDate)
+    if (barberShopId) loadAppointments(barberShopId, newDate)
+  }
+
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    try {
+      await updateAppointmentStatus(id, newStatus)
+      if (barberShopId) loadAppointments(barberShopId, date)
+    } catch {
+      console.error("Erro ao atualizar status")
+    }
+  }
+
+  const filteredAppointments = appointments.filter((a) => {
+    if (barbeiro !== "todos" && a.barbeiro !== barbeiro) return false
+    if (status !== "todos" && a.status !== status) return false
     return true
   })
 
+  const barbeiros = [...new Set(appointments.map((a) => a.barbeiro))]
   const totalDia = filteredAppointments.reduce((sum, a) => sum + a.valor, 0)
-  const agendamentosCount = filteredAppointments.length
-  const confirmadosCount = filteredAppointments.filter(
-    (a) => a.status === "confirmado"
-  ).length
-  const pendentesCount = filteredAppointments.filter(
-    (a) => a.status === "pendente"
-  ).length
+  const confirmados = filteredAppointments.filter((a) => a.status === "confirmado").length
+  const pendentes = filteredAppointments.filter((a) => a.status === "pendente").length
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-
       <main className="flex-1 overflow-auto">
         <div className="p-8">
           <header className="mb-8">
@@ -100,26 +113,30 @@ export default function AgendamentosPage() {
               Gerencie os agendamentos da sua barbearia
             </p>
           </header>
-
           <div className="space-y-6">
             <SummaryCards
               totalDia={totalDia}
-              agendamentos={agendamentosCount}
-              confirmados={confirmadosCount}
-              pendentes={pendentesCount}
+              agendamentos={filteredAppointments.length}
+              confirmados={confirmados}
+              pendentes={pendentes}
             />
-
             <FiltersBar
               date={date}
-              onDateChange={setDate}
+              onDateChange={handleDateChange}
               barbeiro={barbeiro}
               onBarbeiroChange={setBarbeiro}
               status={status}
               onStatusChange={setStatus}
               barbeiros={barbeiros}
             />
-
-            <AppointmentsTable appointments={filteredAppointments} />
+            {loading ? (
+              <p className="text-muted-foreground">Carregando...</p>
+            ) : (
+              <AppointmentsTable
+                appointments={filteredAppointments}
+                onStatusChange={handleStatusChange}
+              />
+            )}
           </div>
         </div>
       </main>

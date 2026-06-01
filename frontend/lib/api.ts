@@ -203,3 +203,36 @@ export async function deleteService(id: string) {
   if (res.status === 204) return null
   return res.json()
 }
+
+export async function getAppointments(barber_shop_id: string, date?: string) {
+  const token = getToken()
+  let url = `${BASE_URL}/appointments?barber_shop_id=${barber_shop_id}`
+  if (date) url += `&date=${date}`
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error("Erro ao buscar agendamentos")
+  return res.json()
+}
+
+export async function updateAppointmentStatus(id: string, status: string) {
+  const token = getToken()
+  
+  const statusMap: Record<string, string> = {
+    confirmado: "confirmed",
+    cancelado: "cancelled",
+    concluido: "completed",
+    pendente: "pending",
+  }
+  
+  const res = await fetch(`${BASE_URL}/appointments/${id}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status: statusMap[status] || status }),
+  })
+  if (!res.ok) throw new Error("Erro ao atualizar status")
+  return res.json()
+}

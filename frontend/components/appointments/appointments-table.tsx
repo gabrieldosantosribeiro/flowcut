@@ -45,9 +45,10 @@ const statusConfig: Record<AppointmentStatus, { label: string; className: string
 
 interface AppointmentsTableProps {
   appointments: Appointment[]
+  onStatusChange?: (id: string, status: string) => void
 }
 
-export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
+export function AppointmentsTable({ appointments, onStatusChange }: AppointmentsTableProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -70,61 +71,72 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {appointments.map((appointment) => (
-            <TableRow key={appointment.id} className="border-border">
-              <TableCell className="font-medium text-foreground">
-                {appointment.horario}
+          {appointments.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                Nenhum agendamento encontrado para este dia.
               </TableCell>
-              <TableCell className="text-foreground">{appointment.cliente}</TableCell>
-              <TableCell className="text-foreground">{appointment.barbeiro}</TableCell>
-              <TableCell className="text-foreground">{appointment.servico}</TableCell>
-              <TableCell className="text-foreground">
-                {formatCurrency(appointment.valor)}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant="secondary"
-                  className={statusConfig[appointment.status].className}
-                >
-                  {statusConfig[appointment.status].label}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-2">
-                  {appointment.status === "pendente" && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-green-500 hover:bg-green-500/10 hover:text-green-500"
-                      >
-                        <Check className="h-4 w-4" />
-                        <span className="sr-only">Confirmar</span>
-                      </Button>
+            </TableRow>
+          ) : (
+            appointments.map((appointment) => (
+              <TableRow key={appointment.id} className="border-border">
+                <TableCell className="font-medium text-foreground">
+                  {appointment.horario}
+                </TableCell>
+                <TableCell className="text-foreground">{appointment.cliente}</TableCell>
+                <TableCell className="text-foreground">{appointment.barbeiro}</TableCell>
+                <TableCell className="text-foreground">{appointment.servico}</TableCell>
+                <TableCell className="text-foreground">
+                  {formatCurrency(appointment.valor)}
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="secondary"
+                    className={statusConfig[appointment.status]?.className}
+                  >
+                    {statusConfig[appointment.status]?.label}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    {appointment.status === "pendente" && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-green-500 hover:bg-green-500/10 hover:text-green-500"
+                          onClick={() => onStatusChange?.(appointment.id, "confirmado")}
+                        >
+                          <Check className="h-4 w-4" />
+                          <span className="sr-only">Confirmar</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                          onClick={() => onStatusChange?.(appointment.id, "cancelado")}
+                        >
+                          <X className="h-4 w-4" />
+                          <span className="sr-only">Cancelar</span>
+                        </Button>
+                      </>
+                    )}
+                    {appointment.status === "confirmado" && (
                       <Button
                         size="sm"
                         variant="ghost"
                         className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                        onClick={() => onStatusChange?.(appointment.id, "cancelado")}
                       >
                         <X className="h-4 w-4" />
                         <span className="sr-only">Cancelar</span>
                       </Button>
-                    </>
-                  )}
-                  {appointment.status === "confirmado" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 hover:text-red-500"
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Cancelar</span>
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </div>
