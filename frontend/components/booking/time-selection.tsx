@@ -10,15 +10,15 @@ interface TimeSelectionProps {
   onDateChange: (date: Date) => void
   onTimeSelect: (time: string) => void
   unavailableSlots: string[]
+  availableSlots?: string[]
 }
 
-const timeSlots = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"]
+const defaultTimeSlots = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"]
 
 function getWeekDays(startDate: Date): Date[] {
   const days: Date[] = []
   const start = new Date(startDate)
   start.setDate(start.getDate() - start.getDay())
-  
   for (let i = 0; i < 7; i++) {
     const day = new Date(start)
     day.setDate(start.getDate() + i)
@@ -39,10 +39,15 @@ export function TimeSelection({
   onDateChange,
   onTimeSelect,
   unavailableSlots,
+  availableSlots,
 }: TimeSelectionProps) {
   const weekDays = getWeekDays(selectedDate)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+
+  const slotsToShow = availableSlots && availableSlots.length > 0 
+    ? availableSlots 
+    : defaultTimeSlots
 
   const navigateWeek = (direction: "prev" | "next") => {
     const newDate = new Date(selectedDate)
@@ -60,7 +65,6 @@ export function TimeSelection({
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-foreground">Escolha o horário</h2>
 
-      {/* Date Picker */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <Button
@@ -86,10 +90,8 @@ export function TimeSelection({
 
         <div className="grid grid-cols-7 gap-2">
           {weekDays.map((day, index) => {
-            const isSelected =
-              selectedDate.toDateString() === day.toDateString()
+            const isSelected = selectedDate.toDateString() === day.toDateString()
             const isDisabled = isDateDisabled(day)
-
             return (
               <button
                 key={index}
@@ -110,31 +112,35 @@ export function TimeSelection({
         </div>
       </div>
 
-      {/* Time Slots */}
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">Horários disponíveis</p>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-          {timeSlots.map((time) => {
-            const isUnavailable = unavailableSlots.includes(time)
-            const isSelected = selectedTime === time
-
-            return (
-              <button
-                key={time}
-                onClick={() => !isUnavailable && onTimeSelect(time)}
-                disabled={isUnavailable}
-                className={cn(
-                  "py-3 px-4 rounded-lg font-medium text-sm transition-all",
-                  isSelected && "bg-primary text-primary-foreground",
-                  !isSelected && !isUnavailable && "bg-muted text-foreground hover:bg-muted/80",
-                  isUnavailable && "bg-muted/50 text-muted-foreground line-through cursor-not-allowed"
-                )}
-              >
-                {time}
-              </button>
-            )
-          })}
-        </div>
+        {slotsToShow.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            Nenhum horário disponível para este dia.
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            {slotsToShow.map((time) => {
+              const isUnavailable = unavailableSlots.includes(time)
+              const isSelected = selectedTime === time
+              return (
+                <button
+                  key={time}
+                  onClick={() => !isUnavailable && onTimeSelect(time)}
+                  disabled={isUnavailable}
+                  className={cn(
+                    "py-3 px-4 rounded-lg font-medium text-sm transition-all",
+                    isSelected && "bg-primary text-primary-foreground",
+                    !isSelected && !isUnavailable && "bg-muted text-foreground hover:bg-muted/80",
+                    isUnavailable && "bg-muted/50 text-muted-foreground line-through cursor-not-allowed"
+                  )}
+                >
+                  {time}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

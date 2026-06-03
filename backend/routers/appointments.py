@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,12 +11,13 @@ from .auth import AuthContext, get_current_auth, require_shop_access
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
+# Timezone de Brasília (UTC-3)
+BR_TZ = timezone(timedelta(hours=-3))
+
 AppointmentStatus = Literal["pending", "confirmed", "cancelled", "completed"]
 
 
 class Appointment(BaseModel):
-    """Representa um agendamento."""
-
     id: str
     barber_shop_id: str
     barber_id: str
@@ -29,8 +30,6 @@ class Appointment(BaseModel):
 
 
 class AppointmentCreate(BaseModel):
-    """Cria um agendamento (público)."""
-
     barber_shop_id: str
     barber_id: str
     service_id: str
@@ -40,44 +39,41 @@ class AppointmentCreate(BaseModel):
 
 
 class AvailableSlot(BaseModel):
-    """Slot livre calculado para um dia."""
-
     starts_at: str
     ends_at: str
 
 
 class AppointmentStatusPatch(BaseModel):
-    """Atualiza o status do agendamento (autenticado)."""
-
     status: AppointmentStatus
 
 
 def _parse_iso(dt_str: str) -> datetime:
-    """Converte string ISO em datetime (sem timezone, para simplicidade)."""
     try:
-        return datetime.fromisoformat(dt_str)
+        dt = datetime.fromisoformat(dt_str)
+        # Se não tiver timezone, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Data/hora inválida (ISO 8601).") from exc
 
 
 def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
-    """Verifica sobreposição de intervalos [start,end)."""
     return a_start < b_end and b_start < a_end
 
 
 @router.get("/available-slots", response_model=List[AvailableSlot])
 def get_available_slots(
-    barber_id: str = Query(..., description="ID do barbeiro"),
-    day: str = Query(..., description="Data no formato YYYY-MM-DD"),
+    barber_id: str = Query(...),
+    day: str = Query(...),
     service_duration_minutes: int = Query(30, ge=5, le=480),
 ) -> List[AvailableSlot]:
-    """Retorna horários livres para um dia, evitando conflito com agendamentos existentes."""
     try:
         target_day = date.fromisoformat(day)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Parâmetro day deve ser YYYY-MM-DD.") from exc
 
-    weekday = (target_day.weekday() + 0) % 7  # 0=Seg ... 6=Dom
+    weekday = target_day.isoweekday() % 7
 
     rules_res = (
         supabase.table("availability")
@@ -90,33 +86,35 @@ def get_available_slots(
     if not rules:
         return []
 
-    # Busca agendamentos do dia (exceto cancelados)
-    start_of_day = datetime.combine(target_day, time(0, 0, 0))
+    # Busca agendamentos do dia em horário de Brasília
+    start_of_day = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=BR_TZ)
     end_of_day = start_of_day + timedelta(days=1)
+
     appts_res = (
         supabase.table("appointments")
-        .select("starts_at, ends_at, status")
+        .select("scheduled_at, ends_at, status")
         .eq("barber_id", barber_id)
         .neq("status", "cancelled")
-        .gte("starts_at", start_of_day.isoformat())
-        .lt("starts_at", end_of_day.isoformat())
+        .gte("scheduled_at", start_of_day.isoformat())
+        .lt("scheduled_at", end_of_day.isoformat())
         .execute()
     )
     appts = []
     for a in (appts_res.data or []):
-        appts.append((_parse_iso(a["starts_at"]), _parse_iso(a["ends_at"])))
+        appts.append((_parse_iso(a["scheduled_at"]), _parse_iso(a["ends_at"])))
 
     slots: List[AvailableSlot] = []
     for rule in rules:
         slot_minutes = int(rule.get("slot_minutes", 30))
         try:
-            s_h, s_m = [int(x) for x in str(rule["start_time"]).split(":")]
-            e_h, e_m = [int(x) for x in str(rule["end_time"]).split(":")]
-        except Exception as exc:  # noqa: BLE001
+            s_h, s_m = [int(x) for x in str(rule["start_time"]).split(":")[:2]]
+            e_h, e_m = [int(x) for x in str(rule["end_time"]).split(":")[:2]]
+        except Exception as exc:
             raise HTTPException(status_code=500, detail="Regra de disponibilidade inválida.") from exc
 
-        window_start = datetime.combine(target_day, time(s_h, s_m))
-        window_end = datetime.combine(target_day, time(e_h, e_m))
+        # Janela de disponibilidade em horário de Brasília
+        window_start = datetime(target_day.year, target_day.month, target_day.day, s_h, s_m, tzinfo=BR_TZ)
+        window_end = datetime(target_day.year, target_day.month, target_day.day, e_h, e_m, tzinfo=BR_TZ)
 
         step = timedelta(minutes=slot_minutes)
         duration = timedelta(minutes=service_duration_minutes)
@@ -141,13 +139,10 @@ def get_available_slots(
 
 @router.post("", response_model=Appointment, status_code=201)
 def create_appointment(payload: AppointmentCreate) -> Appointment:
-    """Cria um agendamento (público).
-
-    Validação básica: calcula duração pelo serviço e evita conflito simples.
-    """
     starts_at = _parse_iso(payload.starts_at)
+    if starts_at.tzinfo is None:
+        starts_at = starts_at.replace(tzinfo=BR_TZ)
 
-    # Confere serviço e duração
     svc_res = (
         supabase.table("services")
         .select("id, barber_shop_id, duration_minutes, active")
@@ -166,13 +161,12 @@ def create_appointment(payload: AppointmentCreate) -> Appointment:
     duration = timedelta(minutes=int(svc.get("duration_minutes", 30)))
     ends_at = starts_at + duration
 
-    # Evita conflito com agendamentos existentes
     conflict_res = (
         supabase.table("appointments")
-        .select("id, starts_at, ends_at, status")
+        .select("id, scheduled_at, ends_at, status")
         .eq("barber_id", payload.barber_id)
         .neq("status", "cancelled")
-        .lt("starts_at", ends_at.isoformat())
+        .lt("scheduled_at", ends_at.isoformat())
         .gt("ends_at", starts_at.isoformat())
         .limit(1)
         .execute()
@@ -188,13 +182,13 @@ def create_appointment(payload: AppointmentCreate) -> Appointment:
                 "barber_id": payload.barber_id,
                 "service_id": payload.service_id,
                 "customer_id": payload.customer_id,
-                "starts_at": starts_at.isoformat(),
+                "scheduled_at": starts_at.isoformat(),
                 "ends_at": ends_at.isoformat(),
                 "status": "pending",
                 "notes": payload.notes,
             }
         )
-        .select("id, barber_shop_id, barber_id, service_id, customer_id, starts_at, ends_at, status, notes")
+        .select("id, barber_shop_id, barber_id, service_id, customer_id, scheduled_at, ends_at, status, notes")
         .execute()
     )
     if not ins.data:
@@ -206,7 +200,7 @@ def create_appointment(payload: AppointmentCreate) -> Appointment:
         barber_id=str(r["barber_id"]),
         service_id=str(r["service_id"]),
         customer_id=str(r["customer_id"]),
-        starts_at=r["starts_at"],
+        starts_at=r["scheduled_at"],
         ends_at=r["ends_at"],
         status=r.get("status", "pending"),
         notes=r.get("notes"),
@@ -215,13 +209,12 @@ def create_appointment(payload: AppointmentCreate) -> Appointment:
 
 @router.get("", response_model=list)
 def list_appointments(
-    barber_shop_id: str = Query(..., description="ID da barbearia"),
-    date: str = Query(None, description="Data no formato YYYY-MM-DD"),
+    barber_shop_id: str = Query(...),
+    date: str = Query(None),
     auth: AuthContext = Depends(get_current_auth),
 ) -> list:
-    """Lista agendamentos da barbearia com dados relacionados (autenticado)."""
     require_shop_access(auth, barber_shop_id)
-    
+
     query = (
         supabase.table("appointments")
         .select("""
@@ -238,18 +231,20 @@ def list_appointments(
         .eq("barber_shop_id", barber_shop_id)
         .order("scheduled_at", desc=False)
     )
-    
+
     if date:
-        from datetime import datetime, timedelta
         try:
             day = datetime.fromisoformat(date)
+            if day.tzinfo is None:
+                day = day.replace(tzinfo=BR_TZ)
             next_day = day + timedelta(days=1)
             query = query.gte("scheduled_at", day.isoformat()).lt("scheduled_at", next_day.isoformat())
         except ValueError:
             pass
-    
+
     res = query.execute()
     return res.data or []
+
 
 @router.patch("/{id}/status", response_model=Appointment)
 def patch_appointment_status(
@@ -257,7 +252,6 @@ def patch_appointment_status(
     payload: AppointmentStatusPatch,
     auth: AuthContext = Depends(get_current_auth),
 ) -> Appointment:
-    """Atualiza status do agendamento (autenticado)."""
     existing = (
         supabase.table("appointments")
         .select("id, barber_shop_id")

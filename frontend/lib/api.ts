@@ -236,3 +236,66 @@ export async function updateAppointmentStatus(id: string, status: string) {
   if (!res.ok) throw new Error("Erro ao atualizar status")
   return res.json()
 }
+
+export async function getPublicBarberShop(slug: string) {
+  const res = await fetch(`${BASE_URL}/barber-shops/${slug}`)
+  if (!res.ok) throw new Error("Barbearia não encontrada")
+  return res.json()
+}
+
+export async function getPublicBarbers(barber_shop_id: string) {
+  const res = await fetch(`${BASE_URL}/barbers?barber_shop_id=${barber_shop_id}`)
+  if (!res.ok) throw new Error("Erro ao buscar barbeiros")
+  return res.json()
+}
+
+export async function getPublicServices(barber_shop_id: string) {
+  const res = await fetch(`${BASE_URL}/services?barber_shop_id=${barber_shop_id}`)
+  if (!res.ok) throw new Error("Erro ao buscar serviços")
+  return res.json()
+}
+
+export async function getAvailableSlots(barber_id: string, day: string, duration: number) {
+  const res = await fetch(
+    `${BASE_URL}/appointments/available-slots?barber_id=${barber_id}&day=${day}&service_duration_minutes=${duration}`
+  )
+  if (!res.ok) throw new Error("Erro ao buscar horários")
+  return res.json()
+}
+
+export async function createCustomer(data: {
+  barber_shop_id: string
+  name: string
+  phone: string
+  email?: string
+}) {
+  const res = await fetch(`${BASE_URL}/customers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error("Erro ao criar cliente")
+  return res.json()
+}
+
+export async function createPublicAppointment(data: {
+  barber_shop_id: string
+  barber_id: string
+  service_id: string
+  customer_id: string
+  starts_at: string
+}) {
+  const res = await fetch(`${BASE_URL}/appointments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}))
+    if (res.status === 409) {
+      throw new Error("Horário já ocupado")
+    }
+    throw new Error(error.detail || "Erro ao criar agendamento")
+  }
+  return res.json()
+}
