@@ -50,6 +50,25 @@ def get_barber_shop_by_slug(slug: str) -> BarberShopPublic:
     row = res.data[0]
     return BarberShopPublic(**{**row, "id": str(row["id"])})
 
+@router.get("/id/{id}", response_model=BarberShopPublic)
+def get_barber_shop_by_id(
+    id: str,
+    auth: AuthContext = Depends(get_current_auth),
+) -> BarberShopPublic:
+    """Retorna dados da barbearia pelo ID (autenticado)."""
+    require_shop_access(auth, barber_shop_id=id)
+    res = (
+        supabase.table("barber_shops")
+        .select("id, name, slug, description, phone, address")
+        .eq("id", id)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Barbearia não encontrada.")
+    row = res.data[0]
+    return BarberShopPublic(**{**row, "id": str(row["id"])})
+
 
 @router.put("/{id}", response_model=BarberShopPublic)
 def update_barber_shop(
