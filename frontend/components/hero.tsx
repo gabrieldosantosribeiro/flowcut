@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { ArrowRight, Play } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -55,10 +55,6 @@ export function Hero() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
-          <Button size="lg" variant="outline" className="w-full sm:w-auto text-base px-8 py-6 border-border hover:bg-secondary">
-            <Play className="mr-2 h-5 w-5" />
-            Ver demonstração
-          </Button>
         </motion.div>
 
         <motion.div
