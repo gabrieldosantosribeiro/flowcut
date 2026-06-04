@@ -21,7 +21,12 @@ app = FastAPI(title="FlowCut API", version="0.1.0")
 # CORS para o frontend Next.js em desenvolvimento
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://flowcut.vercel.app",
+        "https://flowcut-app.vercel.app",
+        "https://flowcut-gz5w4dz8w-ogabrielmclmg-9898s-projects.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
