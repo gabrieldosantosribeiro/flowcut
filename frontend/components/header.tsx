@@ -60,12 +60,16 @@ export function Header() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-4">
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-              Entrar
-            </Button>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-              Começar grátis
-            </Button>
+            <Link href="/login">
+              <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+                Entrar
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                Começar grátis
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -102,12 +106,16 @@ export function Header() {
                 </Link>
               ))}
               <div className="flex flex-col gap-2 pt-4 border-t border-border">
-                <Button variant="ghost" className="justify-start text-muted-foreground">
-                  Entrar
-                </Button>
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  Começar grátis
-                </Button>
+                <Link href="/login">
+                  <Button variant="ghost" className="w-full justify-start text-muted-foreground">
+                    Entrar
+                  </Button>
+                </Link>
+                <Link href="/login">
+                  <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    Começar grátis
+                  </Button>
+                </Link>
               </div>
             </nav>
           </motion.div>

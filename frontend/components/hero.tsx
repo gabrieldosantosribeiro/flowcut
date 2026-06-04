@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { ArrowRight, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 export function Hero() {
   return (
@@ -48,10 +49,12 @@ export function Hero() {
           transition={{ duration: 0.5, delay: 0.3 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <Button size="lg" className="w-full sm:w-auto text-base px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90">
-            Começar grátis
-            <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
+          <Link href="/login" className="w-full sm:w-auto">
+            <Button size="lg" className="w-full text-base px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90">
+              Começar grátis
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
           <Button size="lg" variant="outline" className="w-full sm:w-auto text-base px-8 py-6 border-border hover:bg-secondary">
             <Play className="mr-2 h-5 w-5" />
             Ver demonstração
