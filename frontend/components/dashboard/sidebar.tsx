@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils"
 import { getToken, getBarberShopIdFromToken, logout } from "@/lib/api"
 
-const BASE_URL = "http://localhost:8000"
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },

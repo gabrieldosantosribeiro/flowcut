@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { getToken, getBarberShopIdFromToken } from "@/lib/api"
 
-const BASE_URL = "http://localhost:8000"
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 function maskPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11)
