@@ -10,6 +10,7 @@ from routers import (
     barbers,
     customers,
     services,
+    billing,
 )
 
 # Carrega .env (quando existir) antes de inicializar dependências
@@ -41,7 +42,7 @@ app.include_router(services.router)
 app.include_router(availability.router)
 app.include_router(appointments.router)
 app.include_router(customers.router)
-
+app.include_router(billing.router)
 
 @app.get("/")
 def root():
