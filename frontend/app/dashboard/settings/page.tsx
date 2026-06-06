@@ -33,7 +33,7 @@ export default function ConfiguracoesPage() {
   })
 
   useEffect(() => {
-    setAppUrl(window.location.origin.replace(/\/$/, ""))
+    setAppUrl(window.location.origin)
 
     const id = getBarberShopIdFromToken()
     if (!id) { setLoading(false); return }
