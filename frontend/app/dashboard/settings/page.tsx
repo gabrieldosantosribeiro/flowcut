@@ -22,6 +22,7 @@ export default function ConfiguracoesPage() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [shopId, setShopId] = useState<string | null>(null)
+  const [appUrl, setAppUrl] = useState("")
 
   const [form, setForm] = useState({
     name: "",
@@ -32,6 +33,8 @@ export default function ConfiguracoesPage() {
   })
 
   useEffect(() => {
+    setAppUrl(window.location.origin)
+
     const id = getBarberShopIdFromToken()
     if (!id) { setLoading(false); return }
     setShopId(id)
@@ -109,7 +112,7 @@ export default function ConfiguracoesPage() {
   }
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`flowcut.com/${form.slug}`)
+    navigator.clipboard.writeText(`${appUrl}/${form.slug}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -206,8 +209,8 @@ export default function ConfiguracoesPage() {
                 <p className="text-sm text-muted-foreground">Compartilhe este link com seus clientes</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex-1 rounded-lg border border-border bg-secondary px-3 py-2 text-muted-foreground text-sm select-all">
-                  flowcut.com/{form.slug}
+                <div className="flex-1 rounded-lg border border-border bg-secondary px-3 py-2 text-muted-foreground text-sm select-all truncate">
+                  {appUrl}/{form.slug}
                 </div>
                 <button
                   onClick={handleCopy}
