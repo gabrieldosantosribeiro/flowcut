@@ -216,6 +216,17 @@ def register(payload: RegisterRequest) -> RegisterResponse:
         raise HTTPException(status_code=500, detail="Falha ao criar usuário.")
 
     user_id = str(user_insert.data[0]["id"])
+
+    # Cria trial de 30 dias automaticamente
+    trial_ends = datetime.now(timezone.utc) + timedelta(days=30)
+    supabase.table("subscriptions").insert({
+        "barber_shop_id": shop_id,
+        "plan": "trial",
+        "status": "active",
+        "trial_ends_at": trial_ends.isoformat(),
+        "current_period_end": trial_ends.isoformat(),
+    }).execute()
+
     return RegisterResponse(barber_shop_id=shop_id, user_id=user_id)
 
 
